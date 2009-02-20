@@ -18,13 +18,15 @@ module ActiveRecord::Acts::ActsAsSecure
       extend(ActsAsSecureClassMethods)
       send(:include, InstanceMethods)
     end
-      
+          
   private
             
     def parse_options!(options)
-      @secure_except = unsecure_columns(options.delete(:except))
+      @secure_except = filter_secure_columns(options.delete(:except))
+      @secure_only = filter_secure_columns(options.delete(:only))
       @secure_storage_type = options.delete(:storage_type) || :binary
       @secure_crypto_provider = options.delete(:crypto_provider)
+      @secure_serialize_class = options.delete(:serialize_class) || String
       fail("Unknown option(s): #{ options.keys.join(', ') }") unless options.empty?
     end
     
@@ -35,7 +37,7 @@ module ActiveRecord::Acts::ActsAsSecure
       define_method(:after_find) { } 
     end
 
-    def unsecure_columns(*names)
+    def filter_secure_columns(*names)
       names.flatten.collect(&:to_s)
     end
         
@@ -62,13 +64,17 @@ module ActiveRecord::Acts::ActsAsSecure
       end
 
       def secure_columns
-        columns.reject { |col| (col.type != @secure_storage_type) || @secure_except.include?(col.name) }
+        cols = columns.reject { |col| !@secure_only.include?(col.name) }
+        cols.reject { |col| (col.type != @secure_storage_type) || @secure_except.include?(col.name) }
       end
 
       def secure_crypto_provider
         @secure_crypto_provider
       end
       
+      def update_pk_password(pk_password)
+        @secure_crypto_provider.pk_password = pk_password
+      end
     end
     
     
@@ -76,27 +82,33 @@ module ActiveRecord::Acts::ActsAsSecure
 
       def encrypt_secure_columns
         self.class.secure_columns.each do |col|
-          self[col.name] = secure_encrypt(self[col.name])
+          unless self[col.name].nil?
+            ActiveRecord::Base.serialize col, @secure_serialize_class
+            self[col.name] = secure_encrypt(self[col.name])
+          end
         end
       end
       
       def decrypt_secure_columns
         self.class.secure_columns.each do |col|
-          self[col.name] = secure_decrypt(send("#{ col.name }_before_type_cast")) unless self[col.name].nil?
+          unless self[col.name].nil?
+            ActiveRecord::Base.serialize col, @secure_serialize_class
+            self[col.name] = secure_decrypt(send("#{ col.name }_before_type_cast"))
+          end
         end
       end
-      
+            
     private
       
       def secure_encrypt(arg)
-        secure_crypto_provider.encrypt(arg.to_yaml)
+        secure_crypto_provider.encrypt(arg)
       end 
            
       def secure_decrypt(arg)
         begin
-          YAML.load(secure_crypto_provider.decrypt(arg))
+          secure_crypto_provider.decrypt(arg)
         rescue Exception => ex
-          raise "Failed to decode the field. Incorrect key?"
+          raise "Failed to decode the field. Incorrect key?: #{ex.message}"
         end
       end
       
