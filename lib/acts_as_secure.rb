@@ -34,7 +34,7 @@ module ActiveRecord::Acts::ActsAsSecure
       after_save :decrypt_secure_columns
       after_find :decrypt_secure_columns
       define_method(:after_find) { } 
-      serialize secure_column_symbols
+      secure_column_symbols.each {|col| serialize col}
     end
 
     def filter_secure_columns(*names)
