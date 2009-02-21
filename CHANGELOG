@@ -1,3 +1,18 @@
+rel_1_0_1:
+  date: 2009-12-20
+  notes:
+    - Fixed AR serialization - now adds "serialize" to the model when adding callbacks
+    -- Added secure_column_symbols to return an array of columns to be secured, as symbols. Not very DRY, but works for now 
+    - Defaulting to :text fields instead of binary for :storage type. To allow storing base64 encoded encrypted data
+    - Need to verify :only and :except returns a valid set of columns to secure - haven't tested this much at the moment.
+
+rel_1_0_0:
+  date: 2009-12-20
+  notes:
+    - Updates to use AR serialization to manage storage of data to the DB
+    - Added acts_as_secure :only => [] option to allow specifying specific columns to be secured
+    - Added update_pk_password class method to allow setting the private key password
+    - Added gemspec
 rel_0_0_4:
   date: 2008-09-06
   notes:

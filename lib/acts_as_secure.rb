@@ -24,9 +24,8 @@ module ActiveRecord::Acts::ActsAsSecure
     def parse_options!(options)
       @secure_except = filter_secure_columns(options.delete(:except))
       @secure_only = filter_secure_columns(options.delete(:only))
-      @secure_storage_type = options.delete(:storage_type) || :binary
+      @secure_storage_type = options.delete(:storage_type) || :text
       @secure_crypto_provider = options.delete(:crypto_provider)
-      @secure_serialize_class = options.delete(:serialize_class) || String
       fail("Unknown option(s): #{ options.keys.join(', ') }") unless options.empty?
     end
     
@@ -35,10 +34,19 @@ module ActiveRecord::Acts::ActsAsSecure
       after_save :decrypt_secure_columns
       after_find :decrypt_secure_columns
       define_method(:after_find) { } 
+      serialize secure_column_symbols
     end
 
     def filter_secure_columns(*names)
       names.flatten.collect(&:to_s)
+    end
+    
+    def secure_column_symbols
+      cols = columns.reject { |col| !@secure_only.include?(col.name) }
+      cols.reject { |col| (col.type != @secure_storage_type) || @secure_except.include?(col.name) }
+      c_sym = []
+      cols.each { |col| c_sym.push(col.name.to_sym) }
+      c_sym
     end
         
     module ActsAsSecureClassMethods
@@ -83,8 +91,8 @@ module ActiveRecord::Acts::ActsAsSecure
       def encrypt_secure_columns
         self.class.secure_columns.each do |col|
           unless self[col.name].nil?
-            ActiveRecord::Base.serialize col, @secure_serialize_class
-            self[col.name] = secure_encrypt(self[col.name])
+            enc = secure_encrypt(self[col.name])
+            self[col.name] = enc unless enc.nil?
           end
         end
       end
@@ -92,8 +100,8 @@ module ActiveRecord::Acts::ActsAsSecure
       def decrypt_secure_columns
         self.class.secure_columns.each do |col|
           unless self[col.name].nil?
-            ActiveRecord::Base.serialize col, @secure_serialize_class
-            self[col.name] = secure_decrypt(send("#{ col.name }_before_type_cast"))
+            dec = secure_decrypt(self[col.name])
+            self[col.name] = dec unless dec.nil?            
           end
         end
       end
