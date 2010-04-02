@@ -34,7 +34,7 @@ module ActiveRecord::Acts::ActsAsSecure
       after_save :decrypt_secure_columns
       after_find :decrypt_secure_columns
       define_method(:after_find) { } 
-      secure_column_symbols.each {|col| serialize col} if table_exists?
+      secure_column_symbols.each {|col| serialize col} 
     end
 
     def filter_secure_columns(*names)
@@ -42,7 +42,7 @@ module ActiveRecord::Acts::ActsAsSecure
     end
     
     def secure_column_symbols
-      return unless table_exists?
+      return [] unless table_exists?
       cols = columns.reject { |col| !@secure_only.include?(col.name) }
       cols.reject { |col| (col.type != @secure_storage_type) || @secure_except.include?(col.name) }
       c_sym = []
